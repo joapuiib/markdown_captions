@@ -80,6 +80,48 @@ class Tests(unittest.TestCase):
             '<p>\n<figure class="class"><img src="foo.png" /><figcaption>caption</figcaption></figure>\n</p>'
         )
 
+    def test_multiple_captions(self):
+        md = markdown.Markdown(extensions=['markdown_captions'])
+
+        # two captioned img
+        self.assertEqual(
+            md.convert('![caption1][caption2](foo.png)'),
+            '<p>\n<figure><img src="foo.png" /><figcaption>caption1</figcaption>\n<figcaption>caption2</figcaption>\n</figure>\n</p>'
+        )
+
+        # three captioned img
+        self.assertEqual(
+            md.convert('![caption1][caption2][caption3](foo.png)'),
+            '<p>\n<figure><img src="foo.png" /><figcaption>caption1</figcaption>\n<figcaption>caption2</figcaption>\n<figcaption>caption3</figcaption>\n</figure>\n</p>'
+        )
+
+    def test_multiple_captions_attr(self):
+        md = markdown.Markdown(extensions=['markdown_captions', 'attr_list'])
+
+        # multiple captions but only first classed
+        self.assertEqual(
+            md.convert('![caption]{: .class}(foo.png)'),
+            '<p>\n<figure><img src="foo.png" /><figcaption class="class">caption</figcaption>\n</figure>\n</p>'
+        )
+
+        # multiple captions but only second classed
+        self.assertEqual(
+            md.convert('![caption]{: .class}[caption2](foo.png)'),
+            '<p>\n<figure><img src="foo.png" /><figcaption class="class">caption</figcaption>\n<figcaption>caption2</figcaption>\n</figure>\n</p>'
+        )
+
+        # multiple classed captions img
+        self.assertEqual(
+            md.convert('![caption]{: .class}[caption2]{: .class2}(foo.png)'),
+            '<p>\n<figure><img src="foo.png" /><figcaption class="class">caption</figcaption>\n<figcaption class="class2">caption2</figcaption>\n</figure>\n</p>'
+        )
+
+        # multiple classed captions and classed figure
+        self.assertEqual(
+                md.convert('![caption]{: .class}[caption2]{: .class2}(foo.png){: #figure}'),
+            '<p>\n<figure id="figure"><img src="foo.png" /><figcaption class="class">caption</figcaption>\n<figcaption class="class2">caption2</figcaption></figure>\n</p>'
+        )
+
 
 if __name__ == '__main__':
     unittest.main()

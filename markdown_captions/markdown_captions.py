@@ -10,14 +10,45 @@ from markdown.extensions.attr_list import AttrListTreeprocessor
 import re
 from xml.etree import ElementTree
 
+# CAPTION_RE1 = r'\!\['
 CAPTION_RE = r'\!\[(?=[^\]])'
 
 # handle regular inline image: ![caption](img.jpg)
+# with multiple captions support: ![caption1][caption2](img.jpg)
 class ImageInlineProcessor(LinkInlineProcessor):
 
+    BRACKET_RE = re.compile(r'\[\s*(.*?)\s*\]')
+    # Modified original AttrListTreeprocessor.BASE_RE
+    # so it isn't greedy [^\n]*? and allows
+    # looking for multiple attr_list in the same line
+    ATTR_LIST_RE = re.compile(r'\{\:?[ ]*([^\}\n ][^\n]*?)[ ]*\}') # 
+
     def handleMatch(self, m, data):
-        text, index, handled = self.getText(data, m.end(0))
-        if not handled:
+        captions = []
+        looking_for_captions = True
+        index = m.end(0) - 1
+
+        while looking_for_captions:
+            text, text_index, handled = self.getText(data, index + 1)
+
+            if handled:
+                index = text_index
+
+                # find caption attr_list
+                curly = None
+                if 'attr_list' in self.md.treeprocessors:
+                    # find attr_list curly braces
+                    curly = re.match(self.ATTR_LIST_RE, data[index:])
+                    if curly:
+                        # remove original '{: xxx}'
+                        index += curly.end()
+
+                if text:
+                    captions.append((text, curly))
+            else:
+                looking_for_captions = False
+
+        if not captions:
             return None, None, None
 
         src, title, index, handled = self.getLink(data, index)
@@ -26,14 +57,21 @@ class ImageInlineProcessor(LinkInlineProcessor):
 
         fig = ElementTree.Element('figure')
         img = ElementTree.SubElement(fig, 'img')
-        cap = ElementTree.SubElement(fig, 'figcaption')
 
         img.set('src', src)
-
         if title is not None:
             img.set("title", title)
 
-        cap.text = text
+        # Add captions to figure
+        for caption in captions:
+            cap = ElementTree.SubElement(fig, 'figcaption')
+            cap.text = caption[0]
+
+            # Put '{: xxx} at the end <figcaption> so attr_list will see it
+            if caption[1] and 'attr_list' in self.md.treeprocessors:
+                cap.text += '\n'
+                cap.text += caption[1].group()
+
 
         # if attr_list is enabled, put '{: xxx}' inside <figure> at end
         # so attr_list will see it
@@ -136,7 +174,7 @@ class ShortImageReferenceInlineProcessor(ImageReferenceInlineProcessor):
 
 class CaptionsExtension(Extension):
     def extendMarkdown(self, md):
-        md.inlinePatterns.register(ImageInlineProcessor(CAPTION_RE, md), 'caption', 151)
+        md.inlinePatterns.register(ImageInlineProcessor(CAPTION_RE, md), 'caption', 161)
         md.inlinePatterns.register(ImageReferenceInlineProcessor(CAPTION_RE, md), 'ref_caption', 151)
         md.inlinePatterns.register(ShortImageReferenceInlineProcessor(CAPTION_RE, md), 'short_ref_caption', 151)
 
